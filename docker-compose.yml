@@ -1,0 +1,67 @@
+version: '2'
+
+services:
+  backend:
+    image: 'food-delivery:latest'
+    build:
+      context: backend-images
+    ports:
+      - "8080:8080"
+    container_name: backend
+    links: 
+      - fluentd
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: httpd.access
+    depends_on:
+      - db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/fooddb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=123123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+  db:
+    image: 'postgres:13.1-alpine'
+    container_name: db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123123
+      - POSTGRES_DB=fooddb
+  frontend:
+    build:
+      context: angular-image
+    links:
+           - "backend"
+    depends_on:
+           - "backend"
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: angular.access
+    ports:
+           - "80"
+  fluentd:
+    build: 
+      context: fluent
+    volumes:
+      - ./fluent/conf:/fluentd/etc
+    links:
+      - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+  elasticsearch:
+    image: elasticsearch:6.8.13
+    ports:
+      - "9200:9200"
+    environment:
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+  kibana:
+    image: kibana:6.8.13
+    links:
+      - "elasticsearch"
+    ports:
+      - "5601:5601"
